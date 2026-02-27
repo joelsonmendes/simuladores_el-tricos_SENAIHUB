@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analisador Industrial Pro - SENAI</title>
+    <style>
+        :root {
+            --bg: #020617;
+            --panel: #1e293b;
+            --accent: #22d3ee;
+            --phase-a: #ff0000;
+            --phase-b: #ffff00;
+            --phase-c: #0000ff;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: var(--bg);
+            color: #f1f5f9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+            margin: 0;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 15px;
+            width: 98%;
+            max-width: 1400px;
+        }
+
+        /* Osciloscópio */
+        .scope-frame {
+            background: #000;
+            border: 10px solid #334155;
+            border-radius: 10px;
+            position: relative;
+            box-shadow: inset 0 0 50px #000, 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        canvas { width: 100%; height: 500px; display: block; }
+
+        /* Painel de Controle */
+        .control-panel {
+            background: var(--panel);
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #475569;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .display-unit {
+            background: #064e3b;
+            padding: 15px;
+            border-radius: 5px;
+            border: 2px solid #059669;
+            text-align: right;
+            margin-bottom: 10px;
+        }
+
+        .lcd-val {
+            font-family: monospace;
+            font-size: 2.8rem;
+            color: #4ade80;
+            line-height: 1;
+        }
+
+        .unit-label { font-size: 0.8rem; color: #a7f3d0; margin-top: 5px; }
+
+        .slider-group {
+            background: #334155;
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: var(--accent);
+        }
+
+        .phase-toggle {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .btn-phase {
+            font-size: 0.7rem;
+            padding: 5px;
+            border: 1px solid #475569;
+            background: #1e293b;
+            color: white;
+            cursor: pointer;
+        }
+
+        .active-p { border-color: white; font-weight: bold; }
+
+        .warning-light {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #450a0a;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .alarm-on { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+    </style>
+</head>
+<body>
+
+    <h2 style="margin: 0 0 15px 0; color: var(--accent);">Simulador de Fundamentos de Sistemas Elétricos</h2>
+
+    <div class="main-layout">
+        <div class="scope-frame">
+            <canvas id="scopeCanvas"></canvas>
+            <div style="position: absolute; bottom: 10px; left: 10px; font-family: monospace; font-size: 0.8rem; color: #00ff00;">
+                TIME-BASE: <span id="timeScale">1.0ms</span> / DIV<br>
+                V-SENSE: <span id="voltScale">100V</span> / DIV
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <div class="display-unit">
+                <div class="lcd-val" id="valV">127.0</div>
+                <div class="unit-label">TENSÃO RMS (V)</div>
+            </div>
+            
+            <div class="display-unit" style="background: #1e3a8a; border-color: #3b82f6;">
+                <div class="lcd-val" id="valHz" style="color: #93c5fd;">60.0</div>
+                <div class="unit-label">FREQUÊNCIA (Hz)</div>
+            </div>
+
+            <div class="slider-group">
+                <label>AMPLITUDE (PICO) <span id="txtAmp">180V</span></label>
+                <input type="range" id="ampRange" min="0" max="600" value="180">
+            </div>
+
+            <div class="slider-group">
+                <label>FREQUÊNCIA <span id="txtFreq">60 Hz</span></label>
+                <input type="range" id="freqRange" min="1" max="120" value="60">
+            </div>
+
+            <div class="slider-group">
+                <label>HARMÔNICOS (THD) <span id="txtTHD">0%</span></label>
+                <input type="range" id="thdRange" min="0" max="50" value="0">
+            </div>
+
+            <div class="control-group">
+                <label>STATUS DAS FASES</label>
+                <div class="phase-toggle">
+                    <button id="p1" class="btn-phase active-p" onclick="togglePhase(0)" style="color: #ff3e3e;">L1 - ON</button>
+                    <button id="p2" class="btn-phase active-p" onclick="togglePhase(1)" style="color: #ffff00;">L2 - ON</button>
+                    <button id="p3" class="btn-phase active-p" onclick="togglePhase(2)" style="color: #3b82f6;">L3 - ON</button>
+                </div>
+            </div>
+
+            <div style="margin-top: 10px; border: 1px solid #ef4444; padding: 10px; border-radius: 5px;">
+                <div id="alarmLed" class="warning-light"></div>
+                <span style="font-size: 0.8rem; color: #fca5a5;">ALERTA DE SOBRETENSÃO ( > 440V )</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('scopeCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Estado Inicial
+        let config = {
+            amplitude: 180,
+            frequencia: 60,
+            thd: 0,
+            fasesAtivas: [true, true, true],
+            timeStep: 0
+        };
+
+        // DOM Elements
+        const inputs = {
+            amp: document.getElementById('ampRange'),
+            freq: document.getElementById('freqRange'),
+            thd: document.getElementById('thdRange')
+        };
+
+        const labels = {
+            v: document.getElementById('valV'),
+            hz: document.getElementById('valHz'),
+            amp: document.getElementById('txtAmp'),
+            freq: document.getElementById('txtFreq'),
+            thd: document.getElementById('txtTHD')
+        };
+
+        function togglePhase(idx) {
+            config.fasesAtivas[idx] = !config.fasesAtivas[idx];
+            const btn = document.getElementById(`p${idx+1}`);
+            btn.classList.toggle('active-p');
+            btn.innerText = `L${idx+1} - ${config.fasesAtivas[idx] ? 'ON' : 'OFF'}`;
+        }
+
+        function updateSim() {
+            config.amplitude = parseFloat(inputs.amp.value);
+            config.frequencia = parseFloat(inputs.freq.value);
+            config.thd = parseFloat(inputs.thd.value) / 100;
+
+            // Atualiza Painel
+            const vRms = (config.amplitude / Math.sqrt(2)).toFixed(1);
+            labels.v.innerText = vRms;
+            labels.hz.innerText = config.frequencia.toFixed(1);
+            labels.amp.innerText = config.amplitude + 'V';
+            labels.freq.innerText = config.frequencia + ' Hz';
+            labels.thd.innerText = inputs.thd.value + '%';
+
+            // Alerta Sobretensão
+            document.getElementById('alarmLed').classList.toggle('alarm-on', vRms > 440);
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = "#064e3b";
+            ctx.lineWidth = 1;
+            for(let x=0; x<canvas.width; x+=50) {
+                ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            for(let y=0; y<canvas.height; y+=50) {
+                ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+        }
+
+        function render() {
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+
+            const centerY = canvas.height / 2;
+            const colors = ['#ff3e3e', '#ffff00', '#3b82f6'];
+            const phaseOffsets = [0, (2*Math.PI/3), (4*Math.PI/3)];
+
+            // Para cada fase
+            for(let i=0; i<3; i++) {
+                if(!config.fasesAtivas[i]) continue;
+
+                ctx.beginPath();
+                ctx.strokeStyle = colors[i];
+                ctx.lineWidth = 3;
+                
+                for(let x=0; x<canvas.width; x++) {
+                    // Cálculo da onda com frequência variável
+                    // Escala horizontal ajustada pela frequencia para manter visibilidade
+                    let t = (x * 0.02) * (config.frequencia / 60);
+                    let angle = t + config.timeStep + phaseOffsets[i];
+                    
+                    // Fundamental
+                    let y = Math.sin(angle) * (config.amplitude * 0.5);
+                    
+                    // Harmônicos (3ª e 5ª)
+                    if(config.thd > 0) {
+                        y += Math.sin(angle * 3) * (config.amplitude * 0.5 * config.thd);
+                        y += Math.sin(angle * 5) * (config.amplitude * 0.5 * config.thd * 0.6);
+                    }
+
+                    if(x === 0) ctx.moveTo(x, centerY + y);
+                    else ctx.lineTo(x, centerY + y);
+                }
+                ctx.stroke();
+            }
+
+            config.timeStep -= (config.frequencia * 0.002);
+            requestAnimationFrame(render);
+        }
+
+        // Listeners
+        inputs.amp.oninput = updateSim;
+        inputs.freq.oninput = updateSim;
+        inputs.thd.oninput = updateSim;
+
+        function resize() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        }
+
+        window.onresize = resize;
+        resize();
+        updateSim();
+        render();
+    </script>
+</body>
+</html>

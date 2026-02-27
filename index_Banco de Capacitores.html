@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Electrical Simulator - SENAI</title>
+    <style>
+        :root {
+            --bg-dark: #020617;
+            --panel: #0f172a;
+            --accent: #38bdf8;
+            --phase-a: #ef4444;
+            --phase-b: #fbbf24;
+            --phase-c: #3b82f6;
+            --current: #22d3ee;
+            --safe: #22c55e;
+            --danger: #dc2626;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-dark);
+            color: #f1f5f9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 20px;
+            width: 98%;
+            max-width: 1400px;
+        }
+
+        /* --- DISPLAY AREA --- */
+        .display-column { display: flex; flex-direction: column; gap: 20px; }
+        
+        .scope-container {
+            background: #000;
+            border: 4px solid #334155;
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        canvas { width: 100%; height: 400px; display: block; }
+
+        .vector-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .vector-box {
+            background: #000;
+            border: 2px solid #1e293b;
+            border-radius: 8px;
+            padding: 10px;
+            height: 250px;
+        }
+
+        /* --- CONTROL PANEL --- */
+        .control-panel {
+            background: var(--panel);
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: fit-content;
+        }
+
+        .digital-meter {
+            background: #061e1a;
+            border: 2px solid #10b981;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: right;
+            box-shadow: inset 0 0 10px rgba(0,255,100,0.2);
+        }
+
+        .meter-label { font-size: 0.65rem; color: #10b981; font-weight: bold; }
+        .meter-value { font-family: 'Courier New', monospace; font-size: 2rem; color: #34d399; }
+
+        .control-section {
+            background: #1e293b;
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        .control-section label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            margin-bottom: 8px;
+            color: var(--accent);
+        }
+
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: var(--accent); }
+
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 5px;
+        }
+
+        button {
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.75rem;
+            transition: 0.2s;
+            background: #334155;
+            color: white;
+        }
+
+        button.active { background: var(--accent); color: #000; }
+        button.fault-active { background: var(--danger); animation: pulse 1s infinite; }
+
+        @keyframes pulse { 50% { opacity: 0.7; } }
+
+        .legend-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1 style="margin: 0 0 20px 0; color: var(--accent); text-shadow: 0 0 10px rgba(56,189,248,0.3);">
+        ANALISADOR TÉCNICO DE SISTEMAS ELÉTRICOS
+    </h1>
+
+    <div class="main-layout">
+        <div class="display-column">
+            <div class="scope-container">
+                <div class="legend-overlay">
+                    <span style="color:var(--phase-a)">▬ L1</span> | 
+                    <span style="color:var(--phase-b)">▬ L2</span> | 
+                    <span style="color:var(--phase-c)">▬ L3</span> | 
+                    <span style="color:var(--current)">▬ Corrente (I)</span>
+                </div>
+                <canvas id="mainOsc"></canvas>
+            </div>
+
+            <div class="vector-grid">
+                <div class="vector-box">
+                    <div style="font-size: 0.7rem; color: #64748b; text-align:center;">FASORES DE TENSÃO</div>
+                    <canvas id="phasorCanvas"></canvas>
+                </div>
+                <div class="vector-box">
+                    <div style="font-size: 0.7rem; color: #64748b; text-align:center;">TRIÂNGULO DE POTÊNCIAS</div>
+                    <canvas id="powerTriangleCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <div class="digital-meter">
+                <div class="meter-label">TENSÃO TRUE RMS (L1-N)</div>
+                <div class="meter-value" id="valRMS">127.0 V</div>
+            </div>
+
+            <div class="digital-meter" style="border-color: #3b82f6;">
+                <div class="meter-label">FATOR DE POTÊNCIA (cos φ)</div>
+                <div class="meter-value" id="valFP" style="color: #60a5fa;">1.00</div>
+            </div>
+
+            <div class="control-section">
+                <label>MODO DE SISTEMA</label>
+                <div class="btn-group">
+                    <button id="modeMono" class="active" onclick="setMode('mono')">MONOFÁSICO</button>
+                    <button id="modeTri" onclick="setMode('tri')">TRIFÁSICO</button>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <label>TENSÃO (PICO) <span id="lblAmp">180V</span></label>
+                <input type="range" id="sldAmp" min="0" max="400" value="180">
+            </div>
+
+            <div class="control-section">
+                <label>FREQUÊNCIA <span id="lblHz">60Hz</span></label>
+                <input type="range" id="sldHz" min="1" max="120" value="60">
+            </div>
+
+            <div class="control-section">
+                <label>CARGA INDUTIVA (φ) <span id="lblPhi">0°</span></label>
+                <input type="range" id="sldPhi" min="0" max="85" value="0">
+            </div>
+
+            <div class="control-section">
+                <label>QUALIDADE (THD) <span id="lblTHD">0%</span></label>
+                <input type="range" id="sldTHD" min="0" max="50" value="0">
+            </div>
+
+            <div class="control-section">
+                <label>FALHAS / COMPENSAÇÃO</label>
+                <div class="btn-group">
+                    <button id="btnFault" onclick="toggleFault()">CURTO (SAG)</button>
+                    <button id="btnCap" onclick="toggleCapacitor()">CORRIGIR FP</button>
+                </div>
+            </div>
+
+            <div style="font-size: 0.7rem; color: #475569; border-top: 1px solid #334155; padding-top: 10px;">
+                <strong>Instrução:</strong> Altere a carga indutiva para observar a defasagem da corrente e o crescimento da potência reativa no triângulo.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configurações Globais
+        const state = {
+            mode: 'mono',
+            amp: 180,
+            hz: 60,
+            phi: 0,
+            thd: 0,
+            fault: false,
+            capacitor: false,
+            time: 0
+        };
+
+        // Contextos
+        const osc = document.getElementById('mainOsc').getContext('2d');
+        const phas = document.getElementById('phasorCanvas').getContext('2d');
+        const tri = document.getElementById('powerTriangleCanvas').getContext('2d');
+
+        function setMode(m) {
+            state.mode = m;
+            document.getElementById('modeMono').classList.toggle('active', m === 'mono');
+            document.getElementById('modeTri').classList.toggle('active', m === 'tri');
+        }
+
+        function toggleFault() {
+            state.fault = !state.fault;
+            document.getElementById('btnFault').classList.toggle('fault-active');
+        }
+
+        function toggleCapacitor() {
+            state.capacitor = !state.capacitor;
+            document.getElementById('btnCap').classList.toggle('active');
+        }
+
+        function updateInputs() {
+            state.amp = parseInt(document.getElementById('sldAmp').value);
+            state.hz = parseInt(document.getElementById('sldHz').value);
+            state.thd = parseInt(document.getElementById('sldTHD').value) / 100;
+            
+            let targetPhi = parseInt(document.getElementById('sldPhi').value);
+            if(state.capacitor) targetPhi = Math.max(0, targetPhi - 30);
+            state.phi = targetPhi;
+
+            // Update Labels
+            document.getElementById('lblAmp').innerText = state.amp + "V";
+            document.getElementById('lblHz').innerText = state.hz + "Hz";
+            document.getElementById('lblTHD').innerText = (state.thd * 100).toFixed(0) + "%";
+            document.getElementById('lblPhi').innerText = state.phi + "°";
+            
+            const rms = (state.amp / Math.sqrt(2) * (state.fault ? 0.4 : 1)).toFixed(1);
+            document.getElementById('valRMS').innerText = rms + " V";
+            document.getElementById('valFP').innerText = Math.cos(state.phi * Math.PI/180).toFixed(2);
+        }
+
+        function drawGrid(ctx, w, h) {
+            ctx.strokeStyle = "#112211";
+            ctx.lineWidth = 1;
+            for(let x=0; x<w; x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+            for(let y=0; y<h; y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+        }
+
+        function drawOscilloscope() {
+            const w = mainOsc.width;
+            const h = mainOsc.height;
+            osc.fillStyle = "black";
+            osc.fillRect(0, 0, w, h);
+            drawGrid(osc, w, h);
+
+            const centerY = h / 2;
+            const colors = [ '#ef4444', '#fbbf24', '#3b82f6' ];
+            const offsets = [ 0, 2.094, 4.188 ]; // 0, 120, 240 deg
+
+            const numPhases = state.mode === 'tri' ? 3 : 1;
+
+            for(let i=0; i<numPhases; i++) {
+                osc.beginPath();
+                osc.strokeStyle = colors[i];
+                osc.lineWidth = 2.5;
+                
+                for(let x=0; x<w; x++) {
+                    let t = (x * 0.03) * (state.hz / 60);
+                    let angle = t + state.time + offsets[i];
+                    let faultAmp = state.fault ? 0.4 : 1;
+                    
+                    let y = Math.sin(angle) * (state.amp * 0.5 * faultAmp);
+                    
+                    if(state.thd > 0) {
+                        y += Math.sin(angle * 3) * (state.amp * 0.5 * state.thd);
+                    }
+
+                    if(x === 0) osc.moveTo(x, centerY + y);
+                    else osc.lineTo(x, centerY + y);
+                }
+                osc.stroke();
+            }
+
+            // Desenha Corrente (Baseada na L1)
+            osc.beginPath();
+            osc.strokeStyle = "#22d3ee";
+            osc.setLineDash([5, 5]);
+            const radPhi = state.phi * Math.PI / 180;
+            for(let x=0; x<w; x++) {
+                let t = (x * 0.03) * (state.hz / 60);
+                let y = Math.sin(t + state.time - radPhi) * 60; // Corrente menor e atrasada
+                if(x === 0) osc.moveTo(x, centerY + y);
+                else osc.lineTo(x, centerY + y);
+            }
+            osc.stroke();
+            osc.setLineDash([]);
+
+            state.time -= (state.hz * 0.001);
+        }
+
+        function drawPhasors() {
+            const w = phasorCanvas.width;
+            const h = phasorCanvas.height;
+            phas.clearRect(0,0,w,h);
+            const cx = w/2; const cy = h/2;
+
+            // Círculo base
+            phas.strokeStyle = "#1e293b";
+            phas.beginPath(); phas.arc(cx, cy, 60, 0, Math.PI*2); phas.stroke();
+
+            const colors = [ '#ef4444', '#fbbf24', '#3b82f6' ];
+            const offsets = [ 0, 2.094, 4.188 ];
+            const num = state.mode === 'tri' ? 3 : 1;
+
+            for(let i=0; i<num; i++) {
+                let ang = state.time + offsets[i];
+                phas.strokeStyle = colors[i];
+                phas.lineWidth = 3;
+                phas.beginPath();
+                phas.moveTo(cx, cy);
+                phas.lineTo(cx + Math.cos(ang)*70, cy + Math.sin(ang)*70);
+                phas.stroke();
+            }
+        }
+
+        function drawTriangle() {
+            const w = powerTriangleCanvas.width;
+            const h = powerTriangleCanvas.height;
+            tri.clearRect(0,0,w,h);
+            
+            const ox = 40; const oy = h - 40;
+            const rad = state.phi * Math.PI / 180;
+            const sideP = 150 * Math.cos(rad);
+            const sideQ = 150 * Math.sin(rad);
+
+            // P - Ativa
+            tri.strokeStyle = "#22c55e";
+            tri.lineWidth = 4;
+            tri.beginPath(); tri.moveTo(ox, oy); tri.lineTo(ox + sideP, oy); tri.stroke();
+            
+            // Q - Reativa
+            tri.strokeStyle = "#eab308";
+            tri.beginPath(); tri.moveTo(ox + sideP, oy); tri.lineTo(ox + sideP, oy - sideQ); tri.stroke();
+
+            // S - Aparente
+            tri.strokeStyle = "white";
+            tri.setLineDash([2, 2]);
+            tri.beginPath(); tri.moveTo(ox, oy); tri.lineTo(ox + sideP, oy - sideQ); tri.stroke();
+            tri.setLineDash([]);
+
+            tri.fillStyle = "white";
+            tri.font = "10px Arial";
+            tri.fillText("P (W)", ox + sideP/2 - 10, oy + 15);
+            tri.fillText("Q (VAR)", ox + sideP + 5, oy - sideQ/2);
+        }
+
+        function animate() {
+            updateInputs();
+            drawOscilloscope();
+            drawPhasors();
+            drawTriangle();
+            requestAnimationFrame(animate);
+        }
+
+        // Init
+        window.addEventListener('resize', () => {
+            mainOsc.width = mainOsc.offsetWidth;
+            phasorCanvas.width = phasorCanvas.offsetWidth;
+            powerTriangleCanvas.width = powerTriangleCanvas.offsetWidth;
+        });
+        
+        mainOsc.width = mainOsc.offsetWidth;
+        phasorCanvas.width = 250; phasorCanvas.height = 250;
+        powerTriangleCanvas.width = 350; powerTriangleCanvas.height = 250;
+        
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Laboratório Virtual - Transformadores Trifásicos SENAI</title>
+<!-- Chart.js para gráficos -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root{
+    --bg:#0f172a;
+    --panel:#1e293b;
+    --accent:#10b981;
+    --h:#dc2626;
+    --x:#2563eb;
+}
+
+body{
+    font-family:'Segoe UI',sans-serif;
+    background:var(--bg);
+    color:white;
+    margin:0;
+    padding:20px;
+}
+
+h1{
+    text-align:center;
+    color:var(--accent);
+    margin-bottom:30px;
+}
+
+.grid-3{
+    display:grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap:20px;
+    margin-bottom:20px;
+}
+
+.panel{
+    background:var(--panel);
+    padding:20px;
+    border-radius:12px;
+    border:1px solid #334155;
+    box-shadow:0 4px 6px rgba(0,0,0,0.3);
+}
+
+.panel h3{
+    margin-top:0;
+    color:var(--accent);
+    border-bottom:1px solid #334155;
+    padding-bottom:8px;
+}
+
+input,select{
+    width:100%;
+    padding:8px;
+    margin:6px 0 12px 0;
+    background:#0f172a;
+    color:white;
+    border:1px solid #334155;
+    border-radius:6px;
+    font-size:14px;
+}
+
+label{
+    font-size:0.9rem;
+    color:#94a3b8;
+}
+
+.display-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-top:15px;
+}
+
+.display{
+    background:#061e1a;
+    border:1px solid var(--accent);
+    padding:10px;
+    border-radius:8px;
+    text-align:center;
+}
+
+.display small{
+    color:var(--accent);
+    display:block;
+    font-size:0.75rem;
+    text-transform:uppercase;
+}
+
+.display span{
+    font-family:monospace;
+    font-size:1.2rem;
+    font-weight:bold;
+}
+
+.memory{
+    margin-top:20px;
+    font-size:0.9rem;
+    background:#0f172a;
+    padding:15px;
+    border-radius:8px;
+    border:1px solid #334155;
+    line-height:1.6;
+}
+
+.polarity{
+    margin-top:15px;
+    display:flex;
+    align-items:center;
+    background:#0f172a;
+    padding:10px;
+    border-radius:8px;
+}
+
+.light{
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    margin-right:10px;
+}
+
+.sub{ background:#10b981; box-shadow:0 0 10px #10b981;}
+.add{ background:#f59e0b; box-shadow:0 0 10px #f59e0b;}
+
+/* Gráfico */
+#graficoCanvas{
+    background:#0f172a;
+    border-radius:8px;
+    padding:10px;
+    max-height:250px;
+}
+
+/* Desenho das bobinas */
+#desenhoBobinas{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:#0f172a;
+    border-radius:8px;
+    padding:20px;
+    margin-top:20px;
+}
+
+canvas#bobinasCanvas{
+    background:#1e293b;
+    border-radius:8px;
+    max-width:100%;
+    height:auto;
+}
+
+.small-note{
+    color:#94a3b8;
+    font-size:0.8rem;
+    margin-top:10px;
+    text-align:center;
+}
+</style>
+</head>
+<body>
+
+<h1>⚡ Laboratório Virtual – Ensaios de Transformadores Trifásicos ⚡</h1>
+
+<div class="grid-3">
+    <!-- PAINEL DE PARÂMETROS -->
+    <div class="panel">
+        <h3>Parâmetros Nominais</h3>
+        <label>Ligação</label>
+        <select id="ligacao" onchange="calcular(); desenharBobinas();">
+            <option value="Dy">Delta - Estrela (Dy1)</option>
+            <option value="Yy">Estrela - Estrela (Yy0)</option>
+            <option value="Dd">Delta - Delta (Dd0)</option>
+        </select>
+
+        <label>Tensão Linha Alta (V)</label>
+        <input type="number" id="v1" value="13800" oninput="calcular(); desenharBobinas();">
+
+        <label>Tensão Linha Baixa (V)</label>
+        <input type="number" id="v2" value="220" oninput="calcular(); desenharBobinas();">
+
+        <label>Potência Nominal (kVA)</label>
+        <input type="number" id="s" value="75" oninput="calcular();">
+
+        <label>Perdas no Ferro (W)</label>
+        <input type="number" id="pferro" value="900" oninput="calcular();">
+
+        <label>Perdas no Cobre (W)</label>
+        <input type="number" id="pcobre" value="1200" oninput="calcular();">
+
+        <label>Frequência (Hz)</label>
+        <input type="number" id="freq" value="60" oninput="calcular();">
+
+        <div class="polarity">
+            <div id="lamp" class="light sub"></div>
+            <span id="poltxt">Polaridade Subtrativa (ABNT)</span>
+        </div>
+    </div>
+
+    <!-- PAINEL DE RESULTADOS -->
+    <div class="panel">
+        <h3>Resultados Elétricos</h3>
+        <div class="display-grid">
+            <div class="display">
+                <small>Relação de Espiras</small>
+                <span id="n"></span>
+            </div>
+            <div class="display">
+                <small>Relação de Tensão (k)</small>
+                <span id="k"></span>
+            </div>
+            <div class="display">
+                <small>Corrente Primária (A)</small>
+                <span id="i1"></span>
+            </div>
+            <div class="display">
+                <small>Corrente Secundária (A)</small>
+                <span id="i2"></span>
+            </div>
+            <div class="display">
+                <small>Rendimento (%)</small>
+                <span id="eta"></span>
+            </div>
+            <div class="display">
+                <small>Perdas Totais (W)</small>
+                <span id="ptotal"></span>
+            </div>
+        </div>
+
+        <div style="margin-top:20px;">
+            <h4 style="color:var(--accent); margin:10px 0;">Ensaio de Curto-Circuito</h4>
+            <div class="display-grid" style="grid-template-columns:1fr 1fr;">
+                <div class="display">
+                    <small>Z% (impedância)</small>
+                    <span id="zpercent"></span>
+                </div>
+                <div class="display">
+                    <small>Icc (A) primário</small>
+                    <span id="icc"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="memory" id="memoria"></div>
+    </div>
+
+    <!-- PAINEL DE GRÁFICO -->
+    <div class="panel">
+        <h3>Rendimento vs Carga</h3>
+        <canvas id="graficoCanvas" width="300" height="200"></canvas>
+        <div class="small-note">Clique nos parâmetros para atualizar</div>
+        <!-- Pequeno controle para carga variável (simulação) -->
+        <label style="margin-top:10px; display:block;">Carga (%)</label>
+        <input type="range" id="cargaSlider" min="0" max="200" value="100" step="5" oninput="mostrarCargaInstantanea();">
+        <div style="display:flex; justify-content:space-between; margin-top:5px;">
+            <span>0%</span>
+            <span id="cargaValue">100%</span>
+            <span>200%</span>
+        </div>
+        <div class="display" style="margin-top:15px;">
+            <small>Rendimento nesta carga</small>
+            <span id="rendCarga">--</span>
+        </div>
+    </div>
+</div>
+
+<!-- DESENHO DAS BOBINAS -->
+<div class="panel" style="margin-top:20px;">
+    <h3>Representação das Bobinas (conexão)</h3>
+    <div id="desenhoBobinas">
+        <canvas id="bobinasCanvas" width="600" height="200"></canvas>
+    </div>
+    <div class="small-note">AT: Alta Tensão (vermelho) | BT: Baixa Tensão (azul)</div>
+</div>
+
+<script>
+// Variáveis globais para o gráfico
+let chart;
+
+function calcular() {
+    const sqrt3 = Math.sqrt(3);
+    const lig = document.getElementById("ligacao").value;
+    const v1 = parseFloat(document.getElementById("v1").value) || 0;
+    const v2 = parseFloat(document.getElementById("v2").value) || 0;
+    const s_kva = parseFloat(document.getElementById("s").value) || 0;
+    const pferro = parseFloat(document.getElementById("pferro").value) || 0;
+    const pcobre = parseFloat(document.getElementById("pcobre").value) || 0;
+    const freq = parseFloat(document.getElementById("freq").value) || 60;
+
+    const S = s_kva * 1000;
+
+    // Tensões de fase
+    let v1f, v2f;
+    if (lig === "Dy") {
+        v1f = v1;
+        v2f = v2 / sqrt3;
+    } else if (lig === "Yy") {
+        v1f = v1 / sqrt3;
+        v2f = v2 / sqrt3;
+    } else { // Dd
+        v1f = v1;
+        v2f = v2;
+    }
+
+    const n = v1f / v2f;           // relação de espiras
+    const k = v1 / v2;              // relação de tensão de linha
+    const i1 = S / (sqrt3 * v1);     // corrente primária
+    const i2 = S / (sqrt3 * v2);     // corrente secundária
+    const perdas = pferro + pcobre;
+    const Psaida = S - perdas;
+    const eta = (Psaida / S) * 100;
+
+    // Cálculos para curto-circuito (aproximados)
+    const Vcc = (pcobre / i1) * 1.2; // tensão de curto aproximada (simplificação)
+    const Zbase = v1 / i1;           // impedância base
+    const Zpercent = (pcobre / (S)) * 100; // simplificação didática
+    const Icc = (v1 / (pcobre / i1)) * i1; // corrente de curto (simplificada)
+
+    // Atualizar elementos
+    document.getElementById("n").innerText = n.toFixed(2);
+    document.getElementById("k").innerText = k.toFixed(2);
+    document.getElementById("i1").innerText = i1.toFixed(2);
+    document.getElementById("i2").innerText = i2.toFixed(2);
+    document.getElementById("eta").innerText = eta.toFixed(2);
+    document.getElementById("ptotal").innerText = perdas.toFixed(0);
+    document.getElementById("zpercent").innerText = Zpercent.toFixed(2) + '%';
+    document.getElementById("icc").innerText = Icc.toFixed(0);
+
+    // Polaridade didática
+    const lamp = document.getElementById("lamp");
+    const poltxt = document.getElementById("poltxt");
+    if (v1 > 1000) {
+        lamp.className = "light sub";
+        poltxt.innerText = "Polaridade Subtrativa (Potência)";
+    } else {
+        lamp.className = "light add";
+        poltxt.innerText = "Polaridade Aditiva (Distribuição)";
+    }
+
+    // Memória didática
+    document.getElementById("memoria").innerHTML = `
+        <strong>Fórmulas e passos:</strong><br>
+        1) Tensão de fase: ${lig==='Dy'?'Δ-Y':lig==='Yy'?'Y-Y':'Δ-Δ'}<br>
+        V1f = ${v1f.toFixed(1)} V | V2f = ${v2f.toFixed(1)} V<br>
+        2) Relação de espiras N1/N2 = ${n.toFixed(2)}<br>
+        3) Correntes: I1 = ${i1.toFixed(2)} A, I2 = ${i2.toFixed(2)} A<br>
+        4) Perdas totais = ${perdas} W → Rendimento = ${eta.toFixed(2)}%<br>
+        5) Z% ≈ (Pcobre/S) = ${Zpercent.toFixed(2)}% (simplificado)
+    `;
+
+    // Atualizar gráfico de rendimento vs carga
+    atualizarGrafico(S, pferro, pcobre);
+    // Atualizar rendimento na carga atual
+    mostrarCargaInstantanea();
+}
+
+function atualizarGrafico(S, pferro, pcobre) {
+    const cargas = [0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200];
+    const rendimentos = cargas.map(carga => {
+        const Pc = (carga / 100) ** 2 * pcobre; // perdas no cobre variam com o quadrado da carga
+        const Psaida = (carga / 100) * S;
+        if (Psaida === 0) return 0;
+        const rend = (Psaida / (Psaida + pferro + Pc)) * 100;
+        return rend > 0 ? rend : 0;
+    });
+
+    const ctx = document.getElementById('graficoCanvas').getContext('2d');
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: cargas.map(c => c + '%'),
+            datasets: [{
+                label: 'Rendimento (%)',
+                data: rendimentos,
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16,185,129,0.1)',
+                tension: 0.3,
+                pointBackgroundColor: '#10b981',
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    grid: { color: '#334155' },
+                    ticks: { color: '#94a3b8' }
+                },
+                x: {
+                    grid: { color: '#334155' },
+                    ticks: { color: '#94a3b8' }
+                }
+            }
+        }
+    });
+}
+
+function mostrarCargaInstantanea() {
+    const slider = document.getElementById('cargaSlider');
+    const carga = parseInt(slider.value);
+    document.getElementById('cargaValue').innerText = carga + '%';
+
+    const s_kva = parseFloat(document.getElementById("s").value) || 0;
+    const pferro = parseFloat(document.getElementById("pferro").value) || 0;
+    const pcobre = parseFloat(document.getElementById("pcobre").value) || 0;
+    const S = s_kva * 1000;
+
+    const Pc = (carga / 100) ** 2 * pcobre;
+    const Psaida = (carga / 100) * S;
+    let rend = 0;
+    if (Psaida > 0) {
+        rend = (Psaida / (Psaida + pferro + Pc)) * 100;
+    }
+    document.getElementById('rendCarga').innerText = rend.toFixed(2) + '%';
+}
+
+function desenharBobinas() {
+    const canvas = document.getElementById('bobinasCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const lig = document.getElementById('ligacao').value;
+    const v1 = parseFloat(document.getElementById('v1').value) || 0;
+    const v2 = parseFloat(document.getElementById('v2').value) || 0;
+
+    // Fundo
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Desenhar três fases (A, B, C) lado a lado
+    const fases = ['A', 'B', 'C'];
+    const startX = 100;
+    const stepX = 150;
+    const yAT = 60;
+    const yBT = 140;
+    const bobinaWidth = 40;
+    const bobinaHeight = 30;
+
+    for (let i = 0; i < 3; i++) {
+        const x = startX + i * stepX;
+
+        // Bobina AT (vermelho)
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(x - bobinaWidth/2, yAT - bobinaHeight/2, bobinaWidth, bobinaHeight);
+        ctx.strokeStyle = '#fca5a5';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x - bobinaWidth/2, yAT - bobinaHeight/2, bobinaWidth, bobinaHeight);
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText(fases[i] + ' AT', x - 18, yAT - 15);
+
+        // Bobina BT (azul)
+        ctx.fillStyle = '#2563eb';
+        ctx.fillRect(x - bobinaWidth/2, yBT - bobinaHeight/2, bobinaWidth, bobinaHeight);
+        ctx.strokeStyle = '#93c5fd';
+        ctx.strokeRect(x - bobinaWidth/2, yBT - bobinaHeight/2, bobinaWidth, bobinaHeight);
+        ctx.fillStyle = 'white';
+        ctx.fillText(fases[i] + ' BT', x - 18, yBT + 25);
+
+        // Conexões conforme ligação
+        ctx.beginPath();
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 2;
+
+        // Desenhar linhas de conexão (simplificado)
+        if (lig === 'Dy') {
+            // AT em Delta: conectar A com B, B com C, C com A (triângulo)
+            ctx.strokeStyle = '#f87171';
+            if (i === 0) { // A -> B
+                ctx.moveTo(x + bobinaWidth/2, yAT);
+                ctx.lineTo(x + stepX - bobinaWidth/2, yAT);
+            } else if (i === 1) { // B -> C
+                ctx.moveTo(x + bobinaWidth/2, yAT);
+                ctx.lineTo(x + stepX - bobinaWidth/2, yAT);
+            }
+            // BT em Estrela: neutro (N) no centro
+            ctx.strokeStyle = '#60a5fa';
+            if (i === 0) {
+                ctx.moveTo(x, yBT + bobinaHeight/2);
+                ctx.lineTo(x + 30, yBT + 40);
+            } else if (i === 1) {
+                ctx.moveTo(x, yBT + bobinaHeight/2);
+                ctx.lineTo(x, yBT + 40);
+            } else if (i === 2) {
+                ctx.moveTo(x, yBT + bobinaHeight/2);
+                ctx.lineTo(x - 30, yBT + 40);
+            }
+            ctx.stroke();
+
+        } else if (lig === 'Yy') {
+            // AT Estrela: neutro comum
+            ctx.strokeStyle = '#f87171';
+            ctx.moveTo(x, yAT + bobinaHeight/2);
+            ctx.lineTo(startX + 100, yAT + 50);
+            // BT Estrela: neutro comum
+            ctx.strokeStyle = '#60a5fa';
+            ctx.moveTo(x, yBT + bobinaHeight/2);
+            ctx.lineTo(startX + 100, yBT + 50);
+            ctx.stroke();
+
+        } else if (lig === 'Dd') {
+            // AT Delta
+            ctx.strokeStyle = '#f87171';
+            if (i === 0) {
+                ctx.moveTo(x + bobinaWidth/2, yAT);
+                ctx.lineTo(x + stepX - bobinaWidth/2, yAT);
+            } else if (i === 1) {
+                ctx.moveTo(x + bobinaWidth/2, yAT);
+                ctx.lineTo(x + stepX - bobinaWidth/2, yAT);
+            }
+            // BT Delta
+            ctx.strokeStyle = '#60a5fa';
+            if (i === 0) {
+                ctx.moveTo(x + bobinaWidth/2, yBT);
+                ctx.lineTo(x + stepX - bobinaWidth/2, yBT);
+            } else if (i === 1) {
+                ctx.moveTo(x + bobinaWidth/2, yBT);
+                ctx.lineTo(x + stepX - bobinaWidth/2, yBT);
+            }
+            ctx.stroke();
+        }
+    }
+
+    // Legenda adicional
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px Segoe UI';
+    ctx.fillText('Conexão: ' + lig, 20, 180);
+}
+
+// Inicialização
+window.onload = function() {
+    calcular();
+    desenharBobinas();
+};
+</script>
+</body>
+</html>

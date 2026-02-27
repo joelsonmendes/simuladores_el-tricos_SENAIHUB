@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Simulador de Grandezas Elétricas - SENAI</title>
+    <style>
+        :root {
+            --bg: #050505;
+            --panel: #111827;
+            --phase-a: #ff3333;
+            --phase-b: #ffdd33;
+            --phase-c: #3388ff;
+            --grid: #1e293b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 15px;
+            width: 98%;
+            max-width: 1300px;
+        }
+
+        /* Osciloscópio */
+        .display-container {
+            background: #000;
+            border: 4px solid #334155;
+            border-radius: 8px;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0,255,100,0.1);
+        }
+
+        canvas { width: 100%; height: 550px; display: block; }
+
+        /* Painel Lateral */
+        .controls {
+            background: var(--panel);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .lcd-screen {
+            background: #061e1a;
+            border: 2px solid #10b981;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: right;
+        }
+
+        .lcd-label { font-size: 0.7rem; color: #10b981; text-transform: uppercase; }
+        .lcd-value { font-family: monospace; font-size: 2rem; color: #34d399; }
+
+        .slider-box {
+            background: #1f2937;
+            padding: 12px;
+            border-radius: 6px;
+        }
+
+        input[type="range"] { width: 100%; accent-color: #3b82f6; cursor: pointer; }
+
+        .btn-fault {
+            background: #7f1d1d;
+            border: 1px solid #f87171;
+            padding: 10px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+
+        .btn-fault.on { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+
+        .legend {
+            position: absolute;
+            top: 10px;
+            left: 60px;
+            font-family: monospace;
+            background: rgba(0,0,0,0.7);
+            padding: 5px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+    <h2 style="margin-bottom: 15px;">Analisador de Ondas e Grandezas <span style="color: #3b82f6;">(RMS vs Pico)</span></h2>
+
+    <div class="main-grid">
+        <div class="display-container">
+            <div class="legend">
+                <span style="color: var(--phase-a)">■ L1 (Vₚ)</span><br>
+                <span style="color: var(--phase-b)">■ L2 (Vₚ)</span><br>
+                <span style="color: var(--phase-c)">■ L3 (Vₚ)</span>
+            </div>
+            <canvas id="oscCanvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <div class="lcd-screen">
+                <div class="lcd-label">Tensão RMS Calculada</div>
+                <div class="lcd-value" id="rmsText">127.0 V</div>
+            </div>
+
+            <div class="slider-box">
+                <label style="display:block; font-size: 0.8rem; margin-bottom: 5px;">Ajuste de Amplitude (Pico)</label>
+                <input type="range" id="ampInput" min="50" max="540" value="180">
+                <div style="text-align: center; font-size: 0.9rem; margin-top: 5px;" id="ampText">180V de Pico</div>
+            </div>
+
+            <div class="slider-box">
+                <label style="display:block; font-size: 0.8rem; margin-bottom: 5px;">Injeção de Harmónicos (THD)</label>
+                <input type="range" id="thdInput" min="0" max="40" value="0">
+                <div style="text-align: center; font-size: 0.9rem; margin-top: 5px;" id="thdText">THD: 0%</div>
+            </div>
+
+            <button class="btn-fault" id="faultBtn" onclick="toggleFault()">SIMULAR CURTO (CEIFAMENTO)</button>
+
+            <div style="font-size: 0.75rem; color: #94a3b8; line-height: 1.4;">
+                <strong>Capacidade Técnica:</strong><br>
+                Realizar cálculos básicos de potência e fator de potência. <br><br>
+                <em>Dica: V_rms = V_pico / √2</em>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('oscCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let settings = {
+            amplitude: 180,
+            thd: 0,
+            time: 0,
+            fault: false
+        };
+
+        function toggleFault() {
+            settings.fault = !settings.fault;
+            document.getElementById('faultBtn').classList.toggle('on');
+        }
+
+        function drawScale() {
+            ctx.strokeStyle = "#1e293b";
+            ctx.fillStyle = "#64748b";
+            ctx.font = "10px monospace";
+            ctx.textAlign = "right";
+
+            const centerY = canvas.height / 2;
+            
+            // Desenha linhas horizontais e valores em Volts
+            for (let v = -500; v <= 500; v += 100) {
+                let y = centerY - (v * (canvas.height / 600));
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+                if (v !== 0) ctx.fillText(v + "V", 45, y + 3);
+            }
+        }
+
+        function render() {
+            settings.amplitude = parseInt(document.getElementById('ampInput').value);
+            settings.thd = parseInt(document.getElementById('thdInput').value) / 100;
+            
+            // Atualiza Painéis
+            const rms = (settings.amplitude / Math.sqrt(2)).toFixed(1);
+            document.getElementById('rmsText').innerText = rms + " V";
+            document.getElementById('ampText').innerText = settings.amplitude + "V de Pico";
+            document.getElementById('thdText').innerText = "THD: " + (settings.thd * 100).toFixed(0) + "%";
+
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            drawScale();
+
+            const centerY = canvas.height / 2;
+            const colors = ['#ff3333', '#ffdd33', '#3388ff'];
+            const offsets = [0, 2.09, 4.18];
+
+            for(let i=0; i<3; i++) {
+                ctx.beginPath();
+                ctx.strokeStyle = colors[i];
+                ctx.lineWidth = 2.5;
+
+                let peakX = 0;
+                let peakY = 0;
+                let peakVal = 0;
+
+                for(let x = 60; x < canvas.width; x++) {
+                    let angle = (x * 0.03) + settings.time + offsets[i];
+                    let rawSin = Math.sin(angle);
+                    
+                    // Cálculo da onda com harmónicos
+                    let val = rawSin * settings.amplitude;
+                    if(settings.thd > 0) {
+                        val += Math.sin(angle * 3) * (settings.amplitude * settings.thd);
+                    }
+
+                    // Efeito de falha (Curto/Ceifamento)
+                    if(settings.fault && i === 0) {
+                        if(val > 100) val = 100;
+                        if(val < -100) val = -100;
+                    }
+
+                    let drawY = centerY - (val * (canvas.height / 600));
+
+                    if(x === 60) ctx.moveTo(x, drawY);
+                    else ctx.lineTo(x, drawY);
+
+                    // Captura o ponto de pico para desenhar o valor
+                    if(val > peakVal) {
+                        peakVal = val;
+                        peakX = x;
+                        peakY = drawY;
+                    }
+                }
+                ctx.stroke();
+
+                // Desenha o valor instantâneo no pico de cada fase
+                if(peakVal > 10) {
+                    ctx.fillStyle = colors[i];
+                    ctx.font = "bold 12px Inter";
+                    ctx.fillText(Math.round(peakVal) + "V", peakX, peakY - 10);
+                }
+            }
+
+            settings.time -= 0.05;
+            requestAnimationFrame(render);
+        }
+
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+        render();
+    </script>
+</body>
+</html>

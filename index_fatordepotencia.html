@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Simulador de Cargas e Fator de Potência</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --voltage: #ff3333; /* Vermelho */
+            --current: #00f2ff; /* Ciano */
+            --power-active: #22c55e;
+            --power-reactive: #eab308;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 20px;
+            width: 100%;
+            max-width: 1250px;
+        }
+
+        .display-area {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        canvas {
+            background: #000;
+            border: 3px solid #334155;
+            border-radius: 8px;
+            width: 100%;
+            height: 350px;
+        }
+
+        .side-panel {
+            background: var(--panel);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #475569;
+        }
+
+        .instrument-box {
+            background: #000;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 5px solid var(--power-active);
+        }
+
+        .value-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; }
+        .value-num { font-family: monospace; font-size: 1.8rem; color: #fff; }
+
+        .control-group {
+            margin-top: 20px;
+            padding: 15px;
+            background: #334155;
+            border-radius: 8px;
+        }
+
+        label { display: block; margin-bottom: 10px; font-weight: bold; font-size: 0.9rem; }
+        
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: var(--current); }
+
+        .vector-container {
+            height: 200px;
+            background: #000;
+            margin-top: 15px;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2 style="margin-bottom: 20px;">Análise de Cargas: Ativa vs. Reativa</h2>
+
+    <div class="main-grid">
+        <div class="display-area">
+            <div style="position: relative;">
+                <canvas id="waveCanvas"></canvas>
+                <div style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 4px; font-size: 0.8rem;">
+                    <span style="color: var(--voltage)">▬ Tensão (V)</span><br>
+                    <span style="color: var(--current)">▬ Corrente (I)</span>
+                </div>
+            </div>
+
+            <div style="background: #000; padding: 10px; border-radius: 8px; border: 1px solid #475569;">
+                <div class="value-label" style="text-align: center; margin-bottom: 5px;">Triângulo de Potências (Vetor)</div>
+                <canvas id="vectorCanvas" style="height: 200px; border: none;"></canvas>
+            </div>
+        </div>
+
+        <div class="side-panel">
+            <div class="instrument-box">
+                <div class="value-label">Potência Ativa (P)</div>
+                <div class="value-num" id="pActive">1000 W</div>
+            </div>
+
+            <div class="instrument-box" style="border-left-color: var(--power-reactive);">
+                <div class="value-label">Potência Reativa (Q)</div>
+                <div class="value-num" id="pReactive">0 VAR</div>
+            </div>
+
+            <div class="instrument-box" style="border-left-color: #fff;">
+                <div class="value-label">Fator de Potência (cos φ)</div>
+                <div class="value-num" id="fpValue">1.00</div>
+                <div id="fpStatus" style="font-size: 0.8rem; color: var(--power-active);">Carga Resistiva Pura</div>
+            </div>
+
+            <div class="control-group">
+                <label>Tipo de Carga (Indutância)</label>
+                <input type="range" id="inductanceSlider" min="0" max="90" value="0">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-top: 5px;">
+                    <span>Resistiva (Motor vazio)</span>
+                    <span>Indutiva (Motor com carga)</span>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px; font-size: 0.8rem; line-height: 1.5; background: #0f172a; padding: 10px; border-radius: 5px; border-left: 3px solid #3b82f6;">
+                <strong>Capacidade Técnica:</strong> Observar o comportamento da potência reativa e realizar cálculo de correção.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const waveCanvas = document.getElementById('waveCanvas');
+        const wCtx = waveCanvas.getContext('2d');
+        const vectorCanvas = document.getElementById('vectorCanvas');
+        const vCtx = vectorCanvas.getContext('2d');
+
+        let phi = 0; // Defasagem em graus
+        let time = 0;
+
+        function updateValues() {
+            phi = parseInt(document.getElementById('inductanceSlider').value);
+            const rad = phi * (Math.PI / 180);
+            const fp = Math.cos(rad);
+            
+            // Cálculos fictícios para visualização
+            const s = 1200; // Aparente fixa
+            const p = s * fp;
+            const q = s * Math.sin(rad);
+
+            document.getElementById('pActive').innerText = p.toFixed(0) + " W";
+            document.getElementById('pReactive').innerText = q.toFixed(0) + " VAR";
+            document.getElementById('fpValue').innerText = fp.toFixed(2);
+            
+            const status = document.getElementById('fpStatus');
+            if(phi === 0) {
+                status.innerText = "Carga Resistiva Pura";
+                status.style.color = "#22c55e";
+            } else if (phi < 45) {
+                status.innerText = "Carga Mista (Eficiente)";
+                status.style.color = "#eab308";
+            } else {
+                status.innerText = "Carga Altamente Indutiva (Crítico)";
+                status.style.color = "#ef4444";
+            }
+        }
+
+        function drawWaves() {
+            wCtx.clearRect(0, 0, waveCanvas.width, waveCanvas.height);
+            const cy = waveCanvas.height / 2;
+            const rad = phi * (Math.PI / 180);
+
+            // Grade
+            wCtx.strokeStyle = "#1e293b";
+            for(let i=0; i<waveCanvas.width; i+=50) {
+                wCtx.beginPath(); wCtx.moveTo(i, 0); wCtx.lineTo(i, waveCanvas.height); wCtx.stroke();
+            }
+
+            // Onda de Tensão (Fixa)
+            wCtx.beginPath();
+            wCtx.strokeStyle = "#ff3333";
+            wCtx.lineWidth = 3;
+            for(let x=0; x<waveCanvas.width; x++) {
+                let y = cy + Math.sin(x * 0.05 + time) * 100;
+                if(x===0) wCtx.moveTo(x, y); else wCtx.lineTo(x, y);
+            }
+            wCtx.stroke();
+
+            // Onda de Corrente (Atrasada por phi)
+            wCtx.beginPath();
+            wCtx.strokeStyle = "#00f2ff";
+            wCtx.lineWidth = 3;
+            for(let x=0; x<waveCanvas.width; x++) {
+                // O atraso é somado ao ângulo
+                let y = cy + Math.sin(x * 0.05 + time - rad * 5) * 80;
+                if(x===0) wCtx.moveTo(x, y); else wCtx.lineTo(x, y);
+            }
+            wCtx.stroke();
+
+            time -= 0.1;
+        }
+
+        function drawVector() {
+            vCtx.clearRect(0, 0, vectorCanvas.width, vectorCanvas.height);
+            const originX = 50;
+            const originY = 150;
+            const rad = phi * (Math.PI / 180);
+            const len = 130;
+
+            // Eixos
+            vCtx.strokeStyle = "#333";
+            vCtx.beginPath(); vCtx.moveTo(originX, originY); vCtx.lineTo(originX + 200, originY); vCtx.stroke();
+            vCtx.beginPath(); vCtx.moveTo(originX, originY); vCtx.lineTo(originX, originY - 120); vCtx.stroke();
+
+            // Potência Ativa (P) - Horizontal
+            vCtx.strokeStyle = "#22c55e";
+            vCtx.lineWidth = 4;
+            vCtx.beginPath();
+            vCtx.moveTo(originX, originY);
+            vCtx.lineTo(originX + len * Math.cos(rad), originY);
+            vCtx.stroke();
+
+            // Potência Reativa (Q) - Vertical
+            vCtx.strokeStyle = "#eab308";
+            vCtx.beginPath();
+            vCtx.moveTo(originX + len * Math.cos(rad), originY);
+            vCtx.lineTo(originX + len * Math.cos(rad), originY - len * Math.sin(rad));
+            vCtx.stroke();
+
+            // Potência Aparente (S) - Hipotenusa
+            vCtx.strokeStyle = "#fff";
+            vCtx.setLineDash([5, 5]);
+            vCtx.beginPath();
+            vCtx.moveTo(originX, originY);
+            vCtx.lineTo(originX + len * Math.cos(rad), originY - len * Math.sin(rad));
+            vCtx.stroke();
+            vCtx.setLineDash([]);
+            
+            vCtx.fillStyle = "#fff";
+            vCtx.fillText("φ = " + phi + "°", originX + 20, originY - 5);
+        }
+
+        function loop() {
+            updateValues();
+            drawWaves();
+            drawVector();
+            requestAnimationFrame(loop);
+        }
+
+        waveCanvas.width = waveCanvas.offsetWidth;
+        vectorCanvas.width = vectorCanvas.offsetWidth;
+        loop();
+    </script>
+</body>
+</html>
