@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SENAI HUB - Simuladores Elétricos</title>
+
+<style>
+    body {
+        margin: 0;
+        font-family: 'Segoe UI', sans-serif;
+        background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+        color: white;
+        text-align: center;
+    }
+
+    header {
+        background-color: #ff6f00;
+        padding: 20px;
+        font-size: 24px;
+        font-weight: bold;
+        letter-spacing: 1px;
+    }
+
+    .subtitulo {
+        margin-top: 10px;
+        font-size: 16px;
+        opacity: 0.9;
+    }
+
+    .container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 25px;
+        padding: 40px 20px;
+    }
+
+    .card {
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 30px;
+        width: 260px;
+        transition: 0.3s;
+        border: 1px solid rgba(255,255,255,0.2);
+        cursor: pointer;
+    }
+
+    .card:hover {
+        transform: translateY(-8px);
+        background: rgba(255, 111, 0, 0.2);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    }
+
+    .card h3 {
+        margin-bottom: 15px;
+        color: #ffb74d;
+    }
+
+    .card p {
+        font-size: 14px;
+        opacity: 0.85;
+    }
+
+    footer {
+        margin-top: 40px;
+        padding: 20px;
+        font-size: 14px;
+        opacity: 0.7;
+    }
+
+    a {
+        text-decoration: none;
+        color: white;
+    }
+
+    @media(max-width: 768px){
+        .container {
+            flex-direction: column;
+            align-items: center;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<header>
+    SENAI HUB - Simuladores Elétricos
+    <div class="subtitulo">Laboratórios Virtuais • Indústria 4.0 • Aprendizado Interativo</div>
+</header>
+
+<div class="container">
+
+    <a href="index_Banco de Capacitores.html">
+        <div class="card">
+            <h3>Banco de Capacitores</h3>
+            <p>Simulação de correção de fator de potência e análise técnica.</p>
+        </div>
+    </a>
+
+    <a href="index_Transformadores Trifásicos.html">
+        <div class="card">
+            <h3>Transformadores Trifásicos</h3>
+            <p>Estudo de ligações, potência e comportamento elétrico.</p>
+        </div>
+    </a>
+
+    <a href="index_analisador.html">
+        <div class="card">
+            <h3>Analisador Elétrico</h3>
+            <p>Medições e diagnósticos de grandezas elétricas.</p>
+        </div>
+    </a>
+
+    <a href="index_fatordepotencia.html">
+        <div class="card">
+            <h3>Fator de Potência</h3>
+            <p>Simulador didático para cálculo e correção.</p>
+        </div>
+    </a>
+
+    <a href="index_osciloscópios.html">
+        <div class="card">
+            <h3>Osciloscópio</h3>
+            <p>Visualização de formas de onda e sinais elétricos.</p>
+        </div>
+    </a>
+
+</div>
+
+<footer>
+    © 2026 SENAI HUB - Plataforma de Simulação Educacional <br>
+    Desenvolvido por Joelson Mendes
+</footer>
+
+</body>
+</html>
